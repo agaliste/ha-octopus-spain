@@ -51,9 +51,17 @@ class OctopusCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         if await self._api.login():
             self._data = {}
-            accounts = await self._api.accounts()
-            for account in accounts:
-                self._data[account] = await self._api.account(account)
+            accounts_data = await self._api.accounts()
+            
+            for account_info in accounts_data:
+                account_number = account_info["account_number"]
+                property_ids = account_info["property_ids"]
+                
+                account_details = await self._api.account(account_number)
+                self._data[account_number] = {
+                    **account_details,
+                    "property_ids": property_ids
+                }
 
         return self._data
 

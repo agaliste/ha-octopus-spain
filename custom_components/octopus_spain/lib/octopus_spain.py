@@ -52,7 +52,17 @@ class OctopusSpain:
         client = GraphqlClient(endpoint=GRAPH_QL_ENDPOINT, headers=headers)
         response = await client.execute_async(query)
 
-        return list(map(lambda a: a["number"], response["data"]["viewer"]["accounts"]))
+        accounts_data = response["data"]["viewer"]["accounts"]
+        result = []
+        for account in accounts_data:
+            account_number = account["number"]
+            properties = account.get("properties", [])
+            property_ids = [prop["id"] for prop in properties] if properties else []
+            result.append({
+                "account_number": account_number,
+                "property_ids": property_ids
+            })
+        return result
 
     async def account(self, account: str):
         query = """
