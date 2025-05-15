@@ -39,6 +39,9 @@ class OctopusSpain:
                     accounts {
                         ... on Account {
                             number
+                            properties {
+                                id
+                            }
                         }
                     }
                 }
@@ -108,3 +111,87 @@ class OctopusSpain:
                 "end": (datetime.fromisoformat(invoice["consumptionEndDate"]) - timedelta(seconds=1)).date(),
             },
         }
+        
+    async def get_consumption(self, property_id, start_at, end_at, timezone="Europe/Madrid", first=100):
+        """
+        Fetch consumption data for a specific property within a date range.
+        
+        Args:
+            property_id: The ID of the property to get consumption for
+            start_at: Start datetime in ISO format
+            end_at: End datetime in ISO format
+            timezone: Timezone string (default: "Europe/Madrid")
+            first: Number of records to fetch (default: 100)
+            
+        Returns:
+            Consumption data
+        """
+        query = """
+            query getAccountMeasurements($propertyId: ID!, $first: Int!, $utilityFilters: [UtilityFiltersInput!], $startAt: DateTime, $endAt: DateTime, $timezone: String) {
+              property(id: $propertyId) {
+                measurements(
+                  first: $first
+                  utilityFilters: $utilityFilters
+                  startAt: $startAt
+                  endAt: $endAt
+                  timezone: $timezone
+                ) {
+                  edges {
+                    node {
+                      value
+                      unit
+                      ... on IntervalMeasurementType {
+                        startAt
+                        endAt
+                        durationInSeconds
+                      }
+                      metaData {
+                        statistics {
+                          costExclTax {
+                            pricePerUnit {
+                              amount
+                            }
+                            costCurrency
+                            estimatedAmount
+                          }
+                          costInclTax {
+                            costCurrency
+                            estimatedAmount
+                          }
+                          value
+                          description
+                          label
+                          type
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+        """
+        
+        variables = {
+            "propertyId": property_id,
+            "first": first,
+            "startAt": start_at,
+            "endAt": end_at,
+            "timezone": timezone,
+            "utilityFilters": [
+                {
+                    "electricityFilters": {
+                        "readingDirection": "CONSUMPTION",
+                        "readingFrequencyType": "HOUR_INTERVAL"
+                    }
+                }
+            ]
+        }
+        
+        headers = {"authorization": self._token}
+        client = GraphqlClient(endpoint=GRAPH_QL_ENDPOINT, headers=headers)
+        response = await client.execute_async(query, variables)
+        
+        if "errors" in response:
+            return {"error": response["errors"]}
+            
+        return response["data"]["property"]["measurements"]["edges"]
